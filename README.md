@@ -1,5 +1,12 @@
 
-Test this by
+run the server:
+
+```bash
+cd cmd/server
+go run .
+```
+
+test using python client
 
 ```bash
 . venv/bin/activate

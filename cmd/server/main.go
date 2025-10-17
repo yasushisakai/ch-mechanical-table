@@ -3,26 +3,41 @@ package main
 import (
 	"context"
 
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	table "github.com/yasushisakai/ch-mechanical-table"
+	"github.com/yasushisakai/ch-mechanical-table/hardware"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/log"
 )
+
+func init() {
+	log.SetFlags(log.LstdFlags | log.Llongfile)
+}
 
 func main() {
 
 	e := echo.New()
-	e.Logger.SetLevel(log.INFO)
 
-	t := table.New()
-	if err := t.Init(); err != nil {
-		e.Logger.Fatalf("Table initizalition failed: %s", err)
+	portNames, err := hardware.PortLookup()
+
+	if err != nil {
+		log.Fatalf("failed to lookup hardware port: %s", err)
 	}
+
+	if portNames.Slider == "" {
+		log.Fatalf("Slider missing")
+	}
+
+	if portNames.Button == "" {
+		log.Fatalf("Button missing")
+	}
+
+	t := table.New(portNames)
 
 	e.GET("/", t.WebSocketFunc)
 
@@ -32,21 +47,26 @@ func main() {
 
 	go func() {
 		if err := e.Start(":8080"); err != nil && err != http.ErrServerClosed {
-			e.Logger.Fatalf("shutting down echo server: %s", err)
+			log.Fatalf("shutting down echo server: %s", err)
 		}
 	}()
 
-	t.Start()
+	if err := t.Start(); err != nil {
+		log.Fatalf("error starting table: %s", err)
+	}
 
 	<-ctx.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	t.Stop()
 
-	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
+	if err := t.Stop(ctx); err != nil {
+		log.Fatal(err)
 	}
 
-	e.Logger.Print("cooper hewitt table stopped")
+	if err := e.Shutdown(ctx); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Print("cooper hewitt table stopped")
 
 }
