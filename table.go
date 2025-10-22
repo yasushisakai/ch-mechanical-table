@@ -128,6 +128,7 @@ func (t *Table) WebSocketFunc(c echo.Context) error {
 		t.clientHub.RegisterChan <- clientInChan
 		defer func() { t.clientHub.UnregisterChan <- clientInChan }()
 
+		// Input from client to me
 		go func() {
 			for {
 				msg := ""
@@ -137,7 +138,7 @@ func (t *Table) WebSocketFunc(c echo.Context) error {
 						log.Printf("Client shut off")
 						break
 					}
-					log.Printf("Error Recieving Messag from client: %#v", err)
+					log.Printf("Error Recieving Message from client: %#v", err)
 				}
 
 				v, err := strconv.ParseFloat(strings.TrimSpace(msg), 8)
@@ -145,11 +146,23 @@ func (t *Table) WebSocketFunc(c echo.Context) error {
 					log.Printf("Parsing to float value errored, ignoring message %q: %#v", msg, err)
 					continue
 				}
-
 				t.slider.InputChan <- v
-
 			}
 		}()
+
+		// Data from hardware to the client
+
+		// send slider value once at the beginning
+		mesString := fmt.Sprintf("%s: %f", "slider", t.Slider.Value)
+		err := websocket.Message.Send(ws, mesString)
+		if err != nil {
+			if errors.Is(err, syscall.EPIPE) {
+				log.Printf("broken pipe")
+				return
+			}
+			log.Printf("error sending message: %#v", err)
+			return
+		}
 
 		for {
 			// Write
@@ -159,12 +172,12 @@ func (t *Table) WebSocketFunc(c echo.Context) error {
 				return
 			}
 
-			mesString := fmt.Sprintf("%s: %f", mes.Name, mes.Value)
-			err := websocket.Message.Send(ws, mesString)
+			mesString = fmt.Sprintf("%s: %f", mes.Name, mes.Value)
+			err = websocket.Message.Send(ws, mesString)
 			if err != nil {
 
 				if errors.Is(err, syscall.EPIPE) {
-					lop.Printf("broken pipe")
+					log.Printf("broken pipe")
 					return
 				}
 
