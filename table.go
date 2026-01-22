@@ -120,7 +120,13 @@ func (t *Table) Stop(ctx context.Context) error {
 
 // Handler function to be used in echo server
 func (t *Table) WebSocketFunc(c echo.Context) error {
-	websocket.Handler(func(ws *websocket.Conn) {
+
+	s := websocket.Server{
+        Handshake: func(config *websocket.Config, r *http.Request) error {
+            // Completely disable origin checking (least secure):
+            return nil
+	},
+	Handler: func(ws *websocket.Conn) {
 		defer ws.Close()
 		clientInChan := make(chan hub.BroadcastMessage)
 
@@ -185,6 +191,9 @@ func (t *Table) WebSocketFunc(c echo.Context) error {
 				return
 			}
 		}
-	}).ServeHTTP(c.Response(), c.Request())
+	},
+	}
+
+	s.ServeHTTP(c.Response(), c.Request())
 	return nil
 }
